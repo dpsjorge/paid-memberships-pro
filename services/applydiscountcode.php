@@ -56,22 +56,39 @@
 		exit(0);
 	}
 
+	$code_level_without_discount = $wpdb->get_row("SELECT * FROM $wpdb->pmpro_membership_levels WHERE id = '" . $level_id . "' LIMIT 1");
+
 	//okay, send back new price info
 	$sqlQuery = "SELECT l.id, cl.*, l.name, l.description, l.allow_signups FROM $wpdb->pmpro_discount_codes_levels cl LEFT JOIN $wpdb->pmpro_membership_levels l ON cl.level_id = l.id LEFT JOIN $wpdb->pmpro_discount_codes dc ON dc.id = cl.code_id WHERE dc.code = '" . $discount_code . "' AND cl.level_id = '" . $level_id . "' LIMIT 1";
 	$code_level = $wpdb->get_row($sqlQuery);
 
 	//if the discount code doesn't adjust the level, let's just get the straight level
 	if(empty($code_level))
-		$code_level = $wpdb->get_row("SELECT * FROM $wpdb->pmpro_membership_levels WHERE id = '" . $level_id . "' LIMIT 1");
+		$code_level = $code_level_without_discount;
 
 	//filter adjustments to the level
 	$code_level = apply_filters("pmpro_discount_code_level", $code_level, $discount_code_id);
+
+	$initial_payment_fraction = $code_level->initial_payment / ($code_level_without_discount->initial_payment ? $code_level_without_discount->initial_payment : 1);
+	
+	$billing_amount_fraction = $code_level->billing_amount / ($code_level_without_discount->billing_amount ? $code_level_without_discount->billing_amount : 1);
 
 	printf(__("The %s code has been applied to your order. ", 'paid-memberships-pro' ), $discount_code);
 	?>
 	<script>
 		var code_level = <?php echo json_encode($code_level); ?>;
 
+		var initial_payment_fraction = <?php echo json_encode($initial_payment_fraction); ?>;
+		
+		var billing_amount_fraction = <?php echo json_encode($billing_amount_fraction); ?>;
+		
+		var applied_discount_code_event = jQuery.Event('pmpro.applied_discount_code');
+		applied_discount_code_event.codeLevel = code_level;
+		applied_discount_code_event.initialPaymentFraction = initial_payment_fraction;
+		applied_discount_code_event.billingAmountFraction = billing_amount_fraction;
+		
+		jQuery(document).trigger(applied_discount_code_event);
+		
 		jQuery('#<?php echo $msgfield?>').show();
 		jQuery('#<?php echo $msgfield?>').removeClass('pmpro_error');
 		jQuery('#<?php echo $msgfield?>').addClass('pmpro_success');
